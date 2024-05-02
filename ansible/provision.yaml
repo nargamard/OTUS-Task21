@@ -1,0 +1,53 @@
+- name: NetPlan
+  hosts: all
+  become: yes
+  tasks:
+
+# Отключим ufw везде
+  - name: stop & disable ufw
+    systemd_service:
+      name: ufw
+      state: stopped
+      enabled: false
+
+# Включим проброс пакетов на всех роутерах
+  - name: 'allow forwarding'
+    sysctl:
+      name: net.ipv4.ip_forward
+      value: 1
+      sysctl_set: yes
+
+# Установим telnet и quagga на всех хостах
+  - name: install telnet & quagga
+    apt:
+      name: 
+        - telnet
+        - quagga
+      state: present
+      update_cache: yes
+
+# Скопируем правила для quagga
+  - name: Config quagga
+    template: 
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      owner: quagga
+      group: quagga
+      mode: "{{ item.mode }}"
+    with_items:
+      - { src: "templates/ospfd-{{ansible_hostname}}.conf", dest: "/etc/quagga/ospfd.conf", mode: "0640" }
+      - { src: "templates/zebra-{{ansible_hostname}}.conf", dest: "/etc/quagga/zebra.conf", mode: "0640" }
+
+# Включим ospfd
+  - name: start and enable ospfd
+    systemd:
+      name: ospfd
+      state: started
+      enabled: yes
+
+# Включим zebra
+  - name: start and enable zebra
+    systemd:
+      name: zebra
+      state: started
+      enabled: yes
